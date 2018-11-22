@@ -1,7 +1,8 @@
 module Main exposing (Board, Cell(..), Model, Msg(..), Row, init, main, update, view)
 
+import Array exposing (Array)
 import Browser
-import Html exposing (Html, div, h1, img, p, text)
+import Html exposing (Html, button, div, h1, img, p, text)
 import Html.Attributes exposing (src, style)
 
 
@@ -16,23 +17,30 @@ type Cell
 
 
 type alias Row =
-    ( Cell, Cell, Cell )
+    Array Cell
 
 
 type alias Board =
-    ( Row, Row, Row )
+    Array Row
 
 
 type alias Model =
     { board : Board }
 
 
+initCell : Cell
+initCell =
+    Empty
+
+
+initRow : Row
+initRow =
+    Array.initialize 3 (always initCell)
+
+
 initBoard : Board
 initBoard =
-    ( ( X, X, O )
-    , ( O, X, X )
-    , ( X, O, X )
-    )
+    Array.initialize 3 (always initRow)
 
 
 init : ( Model, Cmd Msg )
@@ -67,11 +75,19 @@ view model =
         ]
 
 
-renderCell : Cell -> Html Msg
-renderCell cell =
+getCell : Int -> Int -> Board -> Cell
+getCell rowIndex columnIndex board =
+    Array.get rowIndex board
+        |> Maybe.withDefault initRow
+        |> Array.get columnIndex
+        |> Maybe.withDefault initCell
+
+
+renderCell : Int -> Int -> Board -> Html Msg
+renderCell rowIndex columnIndex board =
     let
         textContent =
-            case cell of
+            case getCell rowIndex columnIndex board of
                 X ->
                     "X"
 
@@ -81,21 +97,26 @@ renderCell cell =
                 Empty ->
                     " "
     in
-    p cellStyle [ text textContent ]
+    button cellStyle [ text textContent ]
 
 
-renderRow : Row -> Html Msg
-renderRow ( cell1, cell2, cell3 ) =
+renderRow : Int -> Board -> Html Msg
+renderRow rowIndex board =
     div rowStyle
-        (List.map renderCell [ cell1, cell2, cell3 ])
+        (List.range
+            0
+            2
+            |> List.map (\columnIndex -> renderCell rowIndex columnIndex board)
+        )
 
 
 renderBoard : Board -> Html Msg
-renderBoard ( topRow, middleRow, bottomRow ) =
+renderBoard board =
     div boardStyle
-        (List.map
-            renderRow
-            [ topRow, middleRow, bottomRow ]
+        (List.range
+            0
+            2
+            |> List.map (\rowIndex -> renderRow rowIndex board)
         )
 
 
