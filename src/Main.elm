@@ -11,6 +11,12 @@ import Html.Events exposing (onClick)
 ---- MODEL ----
 
 
+type GameState
+    = Playing
+    | SomeoneWon Player
+    | BoardIsFull
+
+
 type Player
     = PlayerX
     | PlayerO
@@ -31,7 +37,12 @@ type alias Board =
 
 
 type alias Model =
-    { board : Board, currentPlayer : Player }
+    { board : Board, currentPlayer : Player, gameState : GameState }
+
+
+initGameState : GameState
+initGameState =
+    Playing
 
 
 initCurrentPlayer : Player
@@ -56,7 +67,7 @@ initBoard =
 
 init : ( Model, Cmd Msg )
 init =
-    ( { board = initBoard, currentPlayer = initCurrentPlayer }, Cmd.none )
+    ( { board = initBoard, currentPlayer = initCurrentPlayer, gameState = initGameState }, Cmd.none )
 
 
 
@@ -65,20 +76,100 @@ init =
 
 type Msg
     = CellClick Int Int
+    | StartNewGame
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    case msg of
-        CellClick rowIndex columnIndex ->
+    case ( msg, model.gameState ) of
+        ( CellClick rowIndex columnIndex, Playing ) ->
             let
-                newCell =
-                    cellForPlayer model.currentPlayer
-
-                otherPlayer =
-                    opposingPlayer model.currentPlayer
+                updatedModel =
+                    model
+                        |> applyCellClick rowIndex columnIndex
+                        |> checkForGameStateChange
+                        |> swapCurrentPlayer
             in
-            ( { model | board = setCell rowIndex columnIndex newCell model.board, currentPlayer = otherPlayer }, Cmd.none )
+            ( updatedModel, Cmd.none )
+
+        ( StartNewGame, _ ) ->
+            ( { model | board = initBoard, currentPlayer = initCurrentPlayer, gameState = initGameState }, Cmd.none )
+
+        other ->
+            ( model, Cmd.none )
+
+
+applyCellClick : Int -> Int -> Model -> Model
+applyCellClick rowIndex columnIndex model =
+    let
+        row =
+            getRow rowIndex model.board
+
+        updatedRow =
+            Array.set columnIndex (cellForPlayer model.currentPlayer) row
+    in
+    { model | board = Array.set rowIndex updatedRow model.board }
+
+
+swapCurrentPlayer : Model -> Model
+swapCurrentPlayer model =
+    let
+        otherPlayer =
+            opposingPlayer model.currentPlayer
+    in
+    { model | currentPlayer = otherPlayer }
+
+
+winningConfigurations : List (List ( Int, Int ))
+winningConfigurations =
+    [ [ ( 0, 0 ), ( 0, 1 ), ( 0, 2 ) ]
+    , [ ( 1, 0 ), ( 1, 1 ), ( 1, 2 ) ]
+    , [ ( 2, 0 ), ( 2, 1 ), ( 2, 2 ) ]
+    , [ ( 0, 0 ), ( 1, 0 ), ( 2, 0 ) ]
+    , [ ( 0, 1 ), ( 1, 1 ), ( 2, 1 ) ]
+    , [ ( 0, 2 ), ( 1, 2 ), ( 2, 2 ) ]
+    , [ ( 0, 0 ), ( 1, 1 ), ( 2, 2 ) ]
+    , [ ( 2, 0 ), ( 1, 1 ), ( 0, 2 ) ]
+    ]
+
+
+checkConfigurationForWin : List ( Int, Int ) -> Model -> Bool
+checkConfigurationForWin configuration { board, currentPlayer } =
+    let
+        winningCell =
+            cellForPlayer currentPlayer
+
+        currentPlayersCellsInConfiguration =
+            configuration
+                |> List.filter
+                    (\( rowIndex, columnIndex ) ->
+                        getCell rowIndex columnIndex board == winningCell
+                    )
+    in
+    List.length currentPlayersCellsInConfiguration == 3
+
+
+boardIsFull : Board -> Bool
+boardIsFull board =
+    List.range 0 2
+        |> List.concatMap
+            (\rowIndex ->
+                List.range 0 2
+                    |> List.map (\columnIndex -> getCell rowIndex columnIndex board)
+            )
+        |> List.all (\cell -> cell /= Empty)
+
+
+checkForGameStateChange : Model -> Model
+checkForGameStateChange model =
+    if List.any (\configuration -> checkConfigurationForWin configuration model) winningConfigurations then
+        { model | gameState = SomeoneWon model.currentPlayer }
+
+    else if boardIsFull model.board then
+        { model | gameState = BoardIsFull }
+
+    else
+        model
 
 
 cellForPlayer : Player -> Cell
@@ -126,6 +217,16 @@ getCell rowIndex columnIndex board =
         |> Maybe.withDefault initCell
 
 
+playerDisplayName : Player -> String
+playerDisplayName player =
+    case player of
+        PlayerX ->
+            "X"
+
+        PlayerO ->
+            "O"
+
+
 
 ---- VIEW ----
 
@@ -137,8 +238,27 @@ view model =
             [ text "Tic Tac Toe" ]
         , renderBoard
             model.board
-        , renderTurn model
+        , renderDialog model
         ]
+
+
+renderDialog : Model -> Html Msg
+renderDialog { gameState, currentPlayer } =
+    case gameState of
+        SomeoneWon winningPlayer ->
+            div [ style "display" "flex", style "flex-direction" "column", style "align-items" "center" ]
+                [ p [] [ text (playerDisplayName winningPlayer ++ " won") ]
+                , button [ onClick StartNewGame ] [ text "Play again?" ]
+                ]
+
+        BoardIsFull ->
+            div [ style "display" "flex", style "flex-direction" "column", style "align-items" "center" ]
+                [ p [] [ text "Stale mate!" ]
+                , button [ onClick StartNewGame ] [ text "Play again?" ]
+                ]
+
+        Playing ->
+            p [] [ text ("It's " ++ playerDisplayName currentPlayer ++ "'s turn") ]
 
 
 renderTurn : Model -> Html Msg
