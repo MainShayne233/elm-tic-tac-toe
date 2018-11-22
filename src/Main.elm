@@ -4,10 +4,16 @@ import Array exposing (Array)
 import Browser
 import Html exposing (Html, button, div, h1, img, p, text)
 import Html.Attributes exposing (src, style)
+import Html.Events exposing (onClick)
 
 
 
 ---- MODEL ----
+
+
+type Player
+    = PlayerX
+    | PlayerO
 
 
 type Cell
@@ -25,7 +31,12 @@ type alias Board =
 
 
 type alias Model =
-    { board : Board }
+    { board : Board, currentPlayer : Player }
+
+
+initCurrentPlayer : Player
+initCurrentPlayer =
+    PlayerX
 
 
 initCell : Cell
@@ -45,7 +56,7 @@ initBoard =
 
 init : ( Model, Cmd Msg )
 init =
-    ( { board = initBoard }, Cmd.none )
+    ( { board = initBoard, currentPlayer = initCurrentPlayer }, Cmd.none )
 
 
 
@@ -53,12 +64,66 @@ init =
 
 
 type Msg
-    = NoOp
+    = CellClick Int Int
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    ( model, Cmd.none )
+    case msg of
+        CellClick rowIndex columnIndex ->
+            let
+                newCell =
+                    cellForPlayer model.currentPlayer
+
+                otherPlayer =
+                    opposingPlayer model.currentPlayer
+            in
+            ( { model | board = setCell rowIndex columnIndex newCell model.board, currentPlayer = otherPlayer }, Cmd.none )
+
+
+cellForPlayer : Player -> Cell
+cellForPlayer player =
+    case player of
+        PlayerX ->
+            X
+
+        PlayerO ->
+            O
+
+
+opposingPlayer : Player -> Player
+opposingPlayer player =
+    case player of
+        PlayerX ->
+            PlayerO
+
+        PlayerO ->
+            PlayerX
+
+
+setCell : Int -> Int -> Cell -> Board -> Board
+setCell rowIndex columnIndex cell board =
+    let
+        row =
+            getRow rowIndex board
+
+        updatedRow =
+            Array.set columnIndex cell row
+    in
+    Array.set rowIndex updatedRow board
+
+
+getRow : Int -> Board -> Row
+getRow rowIndex board =
+    Array.get rowIndex board
+        |> Maybe.withDefault initRow
+
+
+getCell : Int -> Int -> Board -> Cell
+getCell rowIndex columnIndex board =
+    getRow rowIndex board
+        |> Array.get columnIndex
+        |> Maybe.withDefault initCell
 
 
 
@@ -72,32 +137,39 @@ view model =
             [ text "Tic Tac Toe" ]
         , renderBoard
             model.board
+        , renderTurn model
         ]
 
 
-getCell : Int -> Int -> Board -> Cell
-getCell rowIndex columnIndex board =
-    Array.get rowIndex board
-        |> Maybe.withDefault initRow
-        |> Array.get columnIndex
-        |> Maybe.withDefault initCell
+renderTurn : Model -> Html Msg
+renderTurn { currentPlayer } =
+    let
+        textContent =
+            case currentPlayer of
+                PlayerX ->
+                    "It's X's turn"
+
+                PlayerO ->
+                    "It's O's turn"
+    in
+    p [] [ text textContent ]
 
 
 renderCell : Int -> Int -> Board -> Html Msg
 renderCell rowIndex columnIndex board =
     let
-        textContent =
+        ( textContent, eventHandlers ) =
             case getCell rowIndex columnIndex board of
                 X ->
-                    "X"
+                    ( "X", [] )
 
                 O ->
-                    "O"
+                    ( "O", [] )
 
                 Empty ->
-                    " "
+                    ( " ", [ onClick (CellClick rowIndex columnIndex) ] )
     in
-    button cellStyle [ text textContent ]
+    button (cellStyle ++ eventHandlers) [ text textContent ]
 
 
 renderRow : Int -> Board -> Html Msg
