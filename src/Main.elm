@@ -2,8 +2,8 @@ module Main exposing (Board, Cell(..), Model, Msg(..), Row, init, main, update, 
 
 import Array exposing (Array)
 import Browser
-import Html exposing (Html, button, div, h1, img, p, text)
-import Html.Attributes exposing (src, style)
+import Html exposing (Html, button, div, h1, p, text)
+import Html.Attributes exposing (style)
 import Html.Events exposing (onClick)
 
 
